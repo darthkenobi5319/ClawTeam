@@ -60,6 +60,13 @@ class MessageType(str, Enum):
     shutdown_rejected = "shutdown_rejected"
     idle = "idle"
     broadcast = "broadcast"
+    # Thought and interaction types
+    thought = "thought"
+    feedback = "feedback"
+    request = "request"
+    critique = "critique"
+    insight = "insight"
+    question = "question"
 
 
 class TeamMember(BaseModel):
@@ -119,6 +126,13 @@ class TeamMessage(BaseModel):
     # idle notification fields
     last_task: str | None = Field(default=None, alias="lastTask")
     status: str | None = None
+    # Thought and interaction tracking fields
+    thought_type: str | None = Field(default=None, alias="thoughtType")
+    thought_id: str | None = Field(default=None, alias="thoughtId")
+    category: str | None = None
+    fields: dict[str, Any] = Field(default_factory=dict)
+    pattern_name: str | None = Field(default=None, alias="patternName")
+    pattern_step: int | None = Field(default=None, alias="patternStep")
 
 
 class TaskItem(BaseModel):

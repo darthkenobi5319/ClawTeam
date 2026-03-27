@@ -2,6 +2,12 @@
 
 from clawteam.mcp.tools.board import board_overview, board_team
 from clawteam.mcp.tools.cost import cost_summary
+from clawteam.mcp.tools.events import (
+    events_by_agent,
+    events_conversation,
+    events_get,
+    events_summary,
+)
 from clawteam.mcp.tools.mailbox import (
     mailbox_broadcast,
     mailbox_peek,
@@ -17,6 +23,16 @@ from clawteam.mcp.tools.team import (
     team_list,
     team_member_add,
     team_members_list,
+)
+from clawteam.mcp.tools.thoughts import (
+    thought_agent,
+    thought_chain,
+    thought_get,
+    thought_query,
+    thought_save,
+    thought_search,
+    thought_summary,
+    thought_task,
 )
 from clawteam.mcp.tools.workspace import (
     workspace_agent_diff,
@@ -52,6 +68,20 @@ TOOL_FUNCTIONS = [
     workspace_file_owners,
     workspace_cross_branch_log,
     workspace_agent_summary,
+    # Thought tools
+    thought_save,
+    thought_get,
+    thought_query,
+    thought_agent,
+    thought_task,
+    thought_chain,
+    thought_search,
+    thought_summary,
+    # Event tools
+    events_get,
+    events_by_agent,
+    events_conversation,
+    events_summary,
 ]
 
 __all__ = ["TOOL_FUNCTIONS"]

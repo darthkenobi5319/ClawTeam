@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # TOML support: built-in on 3.11+, conditional dependency on 3.10
 if sys.version_info >= (3, 11):
@@ -21,17 +22,56 @@ else:
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+class AgentInteractionDef(BaseModel):
+    """Per-agent interaction configuration (optional in templates)."""
+
+    thought_policy: str | None = None  # never / on_task_start / on_task_end / on_message
+    can_send_to: list[str] = Field(default_factory=lambda: ["*"])
+    can_receive_from: list[str] = Field(default_factory=lambda: ["*"])
+
+
 class AgentDef(BaseModel):
     name: str
     type: str = "general-purpose"
     task: str = ""
     command: list[str] | None = None
+    interaction: AgentInteractionDef | None = None
 
 
 class TaskDef(BaseModel):
     subject: str
     description: str = ""
     owner: str = ""
+
+
+class InteractionConfigDef(BaseModel):
+    """Team-level interaction configuration."""
+
+    protocol: str = "peer_to_peer"  # broadcast / hierarchical / peer_to_peer / consensus
+    thought_policy: str = "on_task_end"
+    allowed_message_types: list[str] = Field(
+        default_factory=lambda: ["message"]
+    )
+
+
+class InteractionPatternDef(BaseModel):
+    """A named interaction flow between specific agents."""
+
+    name: str
+    participants: list[str]
+    flow: str = "sequential"  # sequential / parallel / hybrid
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    required_messages: list[str] = Field(default_factory=list)
+    optional: bool = False
+
+
+class ThoughtCategoryDef(BaseModel):
+    """A category for organizing thoughts in this template."""
+
+    name: str
+    agent_type: str = "*"
+    description: str = ""
+    fields: list[str] = Field(default_factory=list)
 
 
 class TemplateDef(BaseModel):
@@ -42,6 +82,10 @@ class TemplateDef(BaseModel):
     leader: AgentDef
     agents: list[AgentDef] = []
     tasks: list[TaskDef] = []
+    # Extended fields (all optional for backward compatibility)
+    interaction: InteractionConfigDef | None = None
+    interaction_patterns: list[InteractionPatternDef] = Field(default_factory=list)
+    thought_categories: list[ThoughtCategoryDef] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +116,18 @@ def render_task(task: str, **variables: str) -> str:
 # Loading
 # ---------------------------------------------------------------------------
 
+def _parse_interaction(raw: dict | None) -> InteractionConfigDef | None:
+    if not raw:
+        return None
+    return InteractionConfigDef(**raw)
+
+
+def _parse_interaction_def(raw: dict | None) -> AgentInteractionDef | None:
+    if not raw:
+        return None
+    return AgentInteractionDef(**raw)
+
+
 def _parse_toml(path: Path) -> TemplateDef:
     """Parse a TOML template file into a TemplateDef."""
     with open(path, "rb") as f:
@@ -79,15 +135,34 @@ def _parse_toml(path: Path) -> TemplateDef:
 
     tmpl = raw.get("template", {})
 
-    # Parse leader
+    # Parse leader (may include interaction config)
     leader_data = tmpl.get("leader", {})
+    interaction_data = leader_data.pop("interaction", None)
     leader = AgentDef(**leader_data)
+    leader.interaction = _parse_interaction_def(interaction_data)
 
-    # Parse agents
-    agents = [AgentDef(**a) for a in tmpl.get("agents", [])]
+    # Parse agents (each may include interaction config)
+    agents: list[AgentDef] = []
+    for a in tmpl.get("agents", []):
+        agent_data = a.copy()
+        interaction_data = agent_data.pop("interaction", None)
+        agent = AgentDef(**agent_data)
+        agent.interaction = _parse_interaction_def(interaction_data)
+        agents.append(agent)
 
     # Parse tasks
     tasks = [TaskDef(**t) for t in tmpl.get("tasks", [])]
+
+    # Parse extended sections (optional, backward compatible)
+    interaction = _parse_interaction(tmpl.get("interaction"))
+
+    interaction_patterns = []
+    for p in tmpl.get("interaction_patterns", []):
+        interaction_patterns.append(InteractionPatternDef(**p))
+
+    thought_categories = []
+    for c in tmpl.get("thought_categories", []):
+        thought_categories.append(ThoughtCategoryDef(**c))
 
     return TemplateDef(
         name=tmpl.get("name", path.stem),
@@ -97,6 +172,9 @@ def _parse_toml(path: Path) -> TemplateDef:
         leader=leader,
         agents=agents,
         tasks=tasks,
+        interaction=interaction,
+        interaction_patterns=interaction_patterns,
+        thought_categories=thought_categories,
     )
 
 
